@@ -190,7 +190,7 @@ def start_background_worker() -> threading.Thread:
     Spawns an async worker thread within the FastAPI process.
     Ensures seamless async queue handling during local development and server runs.
     """
-    global _worker_thread, _stop_event
+    global _worker_thread
     if _worker_thread is not None and _worker_thread.is_alive():
         logger.info("Background AI Worker is already running.")
         return _worker_thread
@@ -209,7 +209,6 @@ def start_background_worker() -> threading.Thread:
 
 def stop_background_worker():
     """Stops the background worker thread gracefully."""
-    global _stop_event, _worker_thread
     if _stop_event:
         _stop_event.set()
     if _worker_thread and _worker_thread.is_alive():
