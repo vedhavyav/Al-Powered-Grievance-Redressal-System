@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { AxiosError } from "axios";
 
 interface GrievanceFormProps {
-  onSubmitted?: (grievance: any) => void;  // <-- made optional
+  onSubmitted?: (grievance: Record<string, unknown>) => void;
 }
 
 export default function GrievanceForm({ onSubmitted }: GrievanceFormProps) {

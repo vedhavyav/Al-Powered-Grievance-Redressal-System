@@ -1,54 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { AxiosError } from "axios"; // Import AxiosError for type safety
+import axios from "axios";
 import GrievanceChatbot from "@/components/GrievanceChatbot";
 import GrievanceList from "@/components/GrievanceList";
 
+interface Grievance {
+  id: number;
+  description: string;
+  status: string;
+  category?: string;
+  priority?: string;
+  region?: string;
+  solution?: string;
+  assigned_officer_name?: string;
+  created_at?: string;
+}
+
 export default function UserDashboard() {
-  const [grievances, setGrievances] = useState([]);
+  const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchGrievances = async () => {
-      try {
-        // 1. Check if token exists before making request
-        const token = localStorage.getItem("token");
-        if (!token) {
-          throw new Error("No access token found. Please login.");
-        }
+  const fetchGrievances = useCallback(async () => {
+    try {
+      // 1. Check if token exists before making request
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No access token found. Please login.");
+      }
 
-        const res = await api.get("/grievance/my-grievances");
-        setGrievances(res.data);
-      } catch (err: any) {
-        console.error("Dashboard Error:", err); // 🔍 Check Console for this!
+      const res = await api.get("/grievance/my-grievances");
+      setGrievances(res.data);
+    } catch (err: unknown) {
+      console.error("Dashboard Error:", err);
 
-        // 2. Handle 401 Unauthorized (Token expired/invalid)
+      // 2. Handle 401 Unauthorized (Token expired/invalid)
+      if (axios.isAxiosError(err)) {
         if (err.response?.status === 401) {
           setError("Session expired. Redirecting to login...");
           setTimeout(() => {
             localStorage.removeItem("token");
             router.push("/auth/login/user");
           }, 2000);
-        } 
-        // 3. Handle Network Errors (Backend down/CORS)
-        else if (err.message === "Network Error") {
-           setError("Cannot connect to server. Is the backend running?");
+        } else if (err.message === "Network Error") {
+          setError("Cannot connect to server. Is the backend running?");
+        } else {
+          const detail = (err.response?.data as { detail?: string })?.detail;
+          setError(detail || "Failed to load grievances.");
         }
-        else {
-          setError(err.response?.data?.detail || "Failed to load grievances.");
-        }
-      } finally {
-        setLoading(false);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Failed to load grievances.");
       }
-    };
-
-    fetchGrievances();
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
+
+  useEffect(() => {
+    fetchGrievances();
+  }, [fetchGrievances]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -74,7 +90,7 @@ export default function UserDashboard() {
           {/* Chatbot */}
           <div className="w-full">
             <GrievanceChatbot
-              onSubmitted={(newItem) => setGrievances((prev) => [newItem, ...prev])}
+              onSubmitted={(newItem) => setGrievances((prev) => [newItem as unknown as Grievance, ...prev])}
             />
           </div>
 
@@ -96,7 +112,7 @@ export default function UserDashboard() {
                 <p className="text-sm">Use the AI Assistant to file one!</p>
               </div>
             ) : (
-              <GrievanceList grievances={grievances} />
+              <GrievanceList grievances={grievances} onGrievanceUpdated={fetchGrievances} />
             )}
           </div>
         </div>

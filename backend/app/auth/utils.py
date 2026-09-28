@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -5,7 +6,7 @@ from app.db.models import User
 
 
 #JWT Settings
-SECRET_KEY = "secretigrsbackendkey"
+SECRET_KEY = os.getenv("JWT_SECRET", "secretigrsbackendkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 

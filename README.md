@@ -128,7 +128,8 @@ ml_pipeline/  (Prophet Models, Synthetic Data Generation, Training Scripts)
 ### Backend
 
 - FastAPI (Python)
-- SQLAlchemy ORM
+- Redis (Asynchronous Message Broker & High-Performance Response Cache)
+- SQLAlchemy ORM with Composite Database Indexing
 - PostgreSQL
 - JWT Authentication
 - CORS-enabled REST APIs
@@ -195,16 +196,20 @@ cd AI-Grievance-Management-System
 
 ### 🖥️ Backend Setup
 
+> **Note**: Use Python 3.11 or 3.12 (Python 3.13 is incompatible with pinned versions of `prophet` and `numpy 1.26.4`).
+
 #### Create Virtual Environment
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+py -3.12 -m venv venv        # Or: uv venv venv --python 3.12
+source venv/bin/activate     # Windows: .\venv\Scripts\activate
 ```
 
 #### Install Dependencies
 ```bash
 pip install -r requirements.txt
+# Or faster with uv:
+# uv pip install -r requirements.txt
 ```
 
 #### Environment Variables

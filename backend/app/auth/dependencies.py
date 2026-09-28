@@ -35,11 +35,87 @@ def get_current_user(
     return user
 
 
+#Check if current user is a citizen (role = user)
+def require_citizen(current_user: User = Depends(get_current_user)):
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Citizen access required"
+        )
+    return current_user
+
+
+#Check if current user is an officer
+def require_officer(current_user: User = Depends(get_current_user)):
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "officer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Officer access required"
+        )
+    return current_user
+
+
 #Check if current user is an admin
 def require_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role.value != "admin":
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
     return current_user
+
+
+#Check if current user is an officer or admin
+def require_officer_or_admin(current_user: User = Depends(get_current_user)):
+    role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if role_val not in ["admin", "officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Officer or Admin access required"
+        )
+    return current_user
+
+
+def get_actor_role_str(user: User) -> str:
+    """Returns canonical role string ('citizen', 'officer', 'admin')."""
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if role_val == "user":
+        return "citizen"
+    return role_val
+
+
+def enforce_grievance_access(grievance, current_user: User, action: str = "view"):
+    """
+    Enforces server-side object ownership and role-based boundaries.
+    - Admin: universal access
+    - Citizen: restricted strictly to own grievances
+    - Officer: restricted strictly to assigned grievances
+    """
+    role = get_actor_role_str(current_user)
+    if role == "admin":
+        return
+
+    if role == "citizen":
+        if grievance.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Citizens can only {action} their own grievances"
+            )
+        return
+
+    if role == "officer":
+        if grievance.assigned_officer_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Officers can only {action} grievances assigned to their queue"
+            )
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Not authorized to {action} this grievance"
+    )
+

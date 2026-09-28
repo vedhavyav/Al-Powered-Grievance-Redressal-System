@@ -10,10 +10,21 @@ interface ChatMessage {
   text: string;
 }
 
+interface GrievanceAnalysis {
+  category?: string;
+  priority?: string;
+  region?: string;
+  solution?: string;
+  original?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  [key: string]: unknown;
+}
+
 export default function GrievanceChatbot({
   onSubmitted,
 }: {
-  onSubmitted: (g: any) => void;
+  onSubmitted: (g: GrievanceAnalysis | Record<string, unknown>) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -24,7 +35,7 @@ export default function GrievanceChatbot({
 
   const [description, setDescription] = useState("");
   const [step, setStep] = useState<"ask" | "confirm" | "done">("ask");
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<GrievanceAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Auto-scroll to bottom
@@ -89,8 +100,8 @@ export default function GrievanceChatbot({
         setLoading(true);
 
         try {
-          const res = await api.post("/grievance/submit", { //
-            description: analysis.original,
+          const res = await api.post("/grievance/submit", {
+            description: analysis?.original || description,
           });
 
           onSubmitted(res.data);
