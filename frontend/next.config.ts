@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
 
+const isStaticExport = process.env.STATIC_EXPORT === "true";
+
 const nextConfig: NextConfig = {
-  output: "export",
+  ...(isStaticExport ? { output: "export" } : {}),
   images: {
-    unoptimized: true, // Required for static export on Cloudflare Pages
+    unoptimized: true,
   },
 };
 
