@@ -191,3 +191,30 @@ ERROR: ResolutionImpossible
    - Updated `backend/app/db/connection.py` to auto-translate `postgres://` to `postgresql://` and set a 10s connect timeout with fallback handling.
 
 - Status: **Resolved**
+
+---
+
+## 7. SQLAlchemy ProgrammingError: relation does not exist / aborted transaction (`https://sqlalche.me/e/20/f405`)
+
+```text
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.InFailedSqlTransaction / UndefinedTable)
+(Background on this error at: https://sqlalche.me/e/20/f405)
+```
+
+### Root Cause
+1. **`ALTER TYPE ... ADD VALUE` Inside Transaction Block**:
+   - In PostgreSQL, modifying an enum type (`ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'officer'`) cannot be executed inside a multi-statement transaction (`conn.begin()`).
+   - When PostgreSQL rejected it, the transaction was marked aborted (`InFailedSqlTransaction`), causing all subsequent table/index operations in that block to fail with `ProgrammingError` (`https://sqlalche.me/e/20/f405`).
+2. **Missing Automated `Base.metadata.create_all`**:
+   - On fresh cloud databases, base tables (`users`, `grievances`, `grievance_events`) did not exist yet because `create_all` was only present in a separate one-off script (`create_db.py`).
+   - Applying `ALTER TABLE users...` on an uncreated table resulted in `relation "users" does not exist`.
+
+### Resolution Steps Applied
+1. **Isolated `AUTOCOMMIT` DDL Execution**:
+   - Updated `backend/app/db/upgrade_feature_3.py` and `backend/app/db/upgrade_feature_4.py` to use `execution_options(isolation_level="AUTOCOMMIT")`.
+   - `ALTER TYPE` and individual DDL statements now execute safely without aborting shared transaction states.
+2. **Automated Base Schema Creation & Admin Seed**:
+   - Added `Base.metadata.create_all(bind=engine)` to `backend/app/main.py`'s background startup routine so all models, tables, indexes, and relations are verified/created on initial deploy.
+   - Automatically seeds the initial admin user if none exists.
+
+- Status: **Resolved**

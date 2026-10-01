@@ -41,6 +41,14 @@ import threading
 
 def _init_background_services():
     try:
+        from app.db.connection import Base, engine
+        import app.db.models  # noqa: F401 Ensure models are mapped
+        Base.metadata.create_all(bind=engine)
+        print("Database schema verified/created successfully.", flush=True)
+    except Exception as e:
+        print(f"Database table verification/creation notice: {e}", flush=True)
+
+    try:
         upgrade_feature_3_schema(verbose=False)
     except Exception as e:
         print(f"Feature 3 schema upgrade notice: {e}", flush=True)
@@ -49,6 +57,27 @@ def _init_background_services():
         upgrade_feature_4_schema(verbose=False)
     except Exception as e:
         print(f"Feature 4 schema upgrade notice: {e}", flush=True)
+
+    try:
+        import os
+        from app.db.connection import SessionLocal
+        from app.db.models import User, UserRole
+        from app.auth.utils import hash_password
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@igrs.com")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
+        with SessionLocal() as db:
+            if not db.query(User).filter(User.email == admin_email).first():
+                admin_user = User(
+                    name="Admin",
+                    email=admin_email,
+                    password_hash=hash_password(admin_pass),
+                    role=UserRole.admin
+                )
+                db.add(admin_user)
+                db.commit()
+                print(f"Default admin initialized ({admin_email})", flush=True)
+    except Exception as e:
+        print(f"Admin initialization notice: {e}", flush=True)
 
     try:
         load_forecast_models()

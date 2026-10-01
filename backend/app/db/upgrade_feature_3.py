@@ -32,29 +32,32 @@ def upgrade_schema(verbose: bool = True):
     """
     Applies column additions and indexes for Feature 3.
     Safe to execute multiple times (idempotent).
+    Uses AUTOCOMMIT so ALTER TYPE and DDL statements never abort outer transactions.
     """
     applied = []
-    with engine.connect() as conn:
-        with conn.begin():
-            # For PostgreSQL, check if userrole enum needs 'officer'
-            try:
-                conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'officer';"))
-                if verbose:
-                    logger.info("Verified userrole ENUM contains 'officer'")
-            except Exception:
-                # SQLite or already updated
-                pass
 
-            for table, col_or_idx, ddl in UPGRADE_STATEMENTS:
-                try:
-                    conn.execute(text(ddl))
-                    applied.append(f"{table}.{col_or_idx}")
-                    if verbose:
-                        logger.info(f"Verified/Applied schema: {table}.{col_or_idx}")
-                except Exception as e:
-                    # In SQLite or if column already exists
-                    if verbose:
-                        logger.debug(f"Schema update notice ({table}.{col_or_idx}): {e}")
+    # 1. For PostgreSQL, check if userrole enum needs 'officer' (requires AUTOCOMMIT)
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'officer';"))
+            if verbose:
+                logger.info("Verified userrole ENUM contains 'officer'")
+    except Exception:
+        # SQLite, already updated, or userrole type created fresh by create_all
+        pass
+
+    # 2. DDL statements executed with AUTOCOMMIT so individual notices don't abort remaining statements
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for table, col_or_idx, ddl in UPGRADE_STATEMENTS:
+            try:
+                conn.execute(text(ddl))
+                applied.append(f"{table}.{col_or_idx}")
+                if verbose:
+                    logger.info(f"Verified/Applied schema: {table}.{col_or_idx}")
+            except Exception as e:
+                # In SQLite or if column already exists
+                if verbose:
+                    logger.debug(f"Schema update notice ({table}.{col_or_idx}): {e}")
 
     return applied
 

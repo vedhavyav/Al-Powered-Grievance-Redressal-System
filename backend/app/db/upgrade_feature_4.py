@@ -32,28 +32,28 @@ def upgrade_schema(verbose: bool = True):
     """
     Applies table creation and indexes for Feature 4 (Immutable Audit Trail).
     Safe to execute multiple times (idempotent).
+    Uses AUTOCOMMIT so statements are committed independently.
     """
     applied = []
-    with engine.connect() as conn:
-        with conn.begin():
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        try:
+            conn.execute(text(CREATE_EVENTS_TABLE))
+            applied.append("grievance_events table")
+            if verbose:
+                logger.info("Verified/Applied schema: grievance_events table")
+        except Exception as e:
+            if verbose:
+                logger.debug(f"Schema update notice (table creation): {e}")
+
+        for idx_ddl in INDEX_STATEMENTS:
             try:
-                conn.execute(text(CREATE_EVENTS_TABLE))
-                applied.append("grievance_events table")
+                conn.execute(text(idx_ddl))
+                applied.append(idx_ddl.split()[5] if len(idx_ddl.split()) > 5 else "index")
                 if verbose:
-                    logger.info("Verified/Applied schema: grievance_events table")
+                    logger.info(f"Verified/Applied index: {idx_ddl}")
             except Exception as e:
                 if verbose:
-                    logger.debug(f"Schema update notice (table creation): {e}")
-
-            for idx_ddl in INDEX_STATEMENTS:
-                try:
-                    conn.execute(text(idx_ddl))
-                    applied.append(idx_ddl.split()[5] if len(idx_ddl.split()) > 5 else "index")
-                    if verbose:
-                        logger.info(f"Verified/Applied index: {idx_ddl}")
-                except Exception as e:
-                    if verbose:
-                        logger.debug(f"Schema update notice (index): {e}")
+                    logger.debug(f"Schema update notice (index): {e}")
 
     return applied
 
