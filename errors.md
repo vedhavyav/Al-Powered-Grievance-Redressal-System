@@ -117,3 +117,39 @@ docker : The term 'docker' is not recognized as the name of a cmdlet, function, 
    - Once installed, `docker compose up --build` can be executed.
 
 - Status: **Documented / Actionable**
+
+---
+
+## 5. Render Deploy Build Failure: google-api-core and grpcio-status Conflict (Python 3.14)
+
+```text
+ERROR: Cannot install google-api-core[grpc]==2.28.1 and grpcio-status==1.71.2 because these package versions have conflicting dependencies.
+The conflict is caused by:
+    The user requested grpcio-status==1.71.2
+    google-api-core[grpc] 2.28.1 depends on grpcio-status<2.0.0 and >=1.75.1; python_version >= "3.14" and extra == "grpc"
+Additionally, some packages in these conflicts have no matching distributions available for your environment:
+    grpcio-status
+ERROR: ResolutionImpossible
+==> Build failed 😞
+```
+
+### Root Cause
+1. **Render Defaulting to Python 3.14 (`cp314`)**:
+   - Without an explicit Python version pinned, Render defaults to its latest Python version (Python 3.14).
+   - In Python 3.14, `google-api-core[grpc]` requires `grpcio-status >= 1.75.1`, which clashed with the rigid pin `grpcio-status==1.71.2` in `requirements.txt`.
+   - Furthermore, `grpcio-status`, `prophet`, and `numpy==1.26.4` do not have pre-built distributions for Python 3.14.
+2. **Pinned `grpcio-status`**:
+   - `grpcio-status` was rigidly pinned to `1.71.2` while `grpcio` was `1.76.0`.
+
+### Resolution Steps Applied
+1. **Pinned Python Version to 3.12**:
+   - Created `.python-version` files (containing `3.12.8`) in both the repository root and `backend/`.
+   - Created `runtime.txt` files (containing `python-3.12.8`) in both the repository root and `backend/`.
+   - In Render Dashboard under **Environment Variables**, set:
+     ```env
+     PYTHON_VERSION=3.12.8
+     ```
+2. **Loosened `grpcio-status` in `backend/requirements.txt`**:
+   - Changed `grpcio-status==1.71.2` to `grpcio-status>=1.71.2,<2.0.0` to permit compatibility across minor versions.
+
+- Status: **Resolved**
