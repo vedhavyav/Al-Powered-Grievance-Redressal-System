@@ -218,3 +218,33 @@ sqlalchemy.exc.ProgrammingError: (psycopg2.errors.InFailedSqlTransaction / Undef
    - Automatically seeds the initial admin user if none exists.
 
 - Status: **Resolved**
+
+---
+
+## 8. Cloudflare Pages Deploy: Output directory "frontend/out" not found
+
+```text
+Validating asset output directory
+Error: Output directory "frontend/out" not found.
+Failed: build output directory not found
+```
+
+### Root Cause
+- In `frontend/next.config.ts`, `output: "export"` was only enabled when `process.env.STATIC_EXPORT === "true"`.
+- Cloudflare Pages runs in its own environment where `CF_PAGES=1` is automatically injected, but `STATIC_EXPORT` was not defined.
+- As a result, Next.js performed a standard Node production build into `.next/` and did not generate the static `out` directory expected by Cloudflare Pages.
+
+### Resolution Steps Applied
+1. **Auto-Detect Cloudflare Pages Environment**:
+   - Updated `frontend/next.config.ts` to check both flags:
+     ```ts
+     const isStaticExport = process.env.STATIC_EXPORT === "true" || process.env.CF_PAGES === "1";
+     ```
+   - Cloudflare Pages builds now automatically trigger `output: "export"` without requiring manual dashboard environment variable configuration.
+2. **Added `build:static` Script**:
+   - Added `"build:static": "STATIC_EXPORT=true next build"` to `frontend/package.json`.
+3. **Verification**:
+   - Simulated Cloudflare Pages environment locally with `$env:CF_PAGES="1"; npm run build`.
+   - Verified that `frontend/out` was generated successfully with all 12 static HTML routes and assets.
+
+- Status: **Resolved**
