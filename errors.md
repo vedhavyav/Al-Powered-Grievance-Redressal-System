@@ -153,3 +153,41 @@ ERROR: ResolutionImpossible
    - Changed `grpcio-status==1.71.2` to `grpcio-status>=1.71.2,<2.0.0` to permit compatibility across minor versions.
 
 - Status: **Resolved**
+
+---
+
+## 6. Render Deploy Port Scan Timeout ("No open ports detected, continuing to scan...")
+
+```text
+==> Running 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
+==> No open ports detected, continuing to scan...
+==> Timed Out
+==> Port scan timeout reached, no open ports detected. Bind your service to at least one port.
+2026-10-01 13:32:45,241 [WARNING] matplotlib.font_manager: Matplotlib is building the font cache; this may take a moment.
+2026-10-01 13:32:54,608 [INFO] matplotlib.font_manager: generated new fontManager
+2026-10-01 13:32:57,444 [ERROR] prophet.plot: Importing plotly failed. Interactive plots will not work.
+```
+
+### Root Cause
+1. **Synchronous Blocking Startup in FastAPI**:
+   - In FastAPI/Starlette, `@app.on_event("startup")` executes synchronously *before* Uvicorn opens the listening socket and binds to `$PORT`.
+   - The startup event was running heavy, synchronous tasks:
+     - Connecting to the PostgreSQL database to apply Feature 3 and Feature 4 schema migrations.
+     - Loading forecast models.
+   - If PostgreSQL connection is slow, remote, or unavailable, TCP connect timeouts took 30–75+ seconds, delaying Uvicorn from binding to `$PORT` past Render's port-check timeout (~60s).
+2. **Eager Imports of Heavy Libraries**:
+   - `retrain_service.py` imported `from prophet import Prophet` at module top-level.
+   - This triggered Matplotlib system font scanning and font cache creation at server boot time (~10s CPU overhead on shared cloud instances).
+3. **Database URL Normalization**:
+   - Cloud PostgreSQL providers (Render PostgreSQL, Supabase) often generate connection URLs beginning with `postgres://`, which fails in SQLAlchemy 2.0+ without replacing it with `postgresql://`.
+
+### Resolution Steps Applied
+1. **Asynchronous Non-Blocking Startup**:
+   - Updated `backend/app/main.py` so that DB schema migrations, model loading, and worker initialization run in a background daemon thread.
+   - Uvicorn now finishes the startup lifecycle and binds to `0.0.0.0:$PORT` **immediately (<1 second)**.
+2. **Lazy Import of Prophet**:
+   - Moved `from prophet import Prophet` inside the `retrain_forecast_models()` function in `backend/app/services/retrain_service.py`. Matplotlib font caching is no longer executed during server boot.
+3. **Enhanced Database URL and Timeout Configuration**:
+   - Updated `backend/app/db/connection.py` to auto-translate `postgres://` to `postgresql://` and set a 10s connect timeout with fallback handling.
+
+- Status: **Resolved**

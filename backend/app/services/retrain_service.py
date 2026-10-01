@@ -1,5 +1,4 @@
 import joblib
-from prophet import Prophet
 import os
 from app.utils.aggregate_data import fetch_aggregated_data
 from app.db.connection import get_db
@@ -10,6 +9,7 @@ def retrain_forecast_models():
     Retrains Prophet models using real grievance data if enough exists.
     Falls back to trained dataset otherwise.
     """
+    from prophet import Prophet
     db = next(get_db())
     df = fetch_aggregated_data(db)
 

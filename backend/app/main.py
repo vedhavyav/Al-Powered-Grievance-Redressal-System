@@ -36,26 +36,46 @@ app.include_router(ai_router.router)
 app.include_router(observability.router)
 
 
-@app.on_event("startup")
-def startup_event():
-    print("Starting IGRS backend...")
+import threading
+
+
+def _init_background_services():
     try:
         upgrade_feature_3_schema(verbose=False)
     except Exception as e:
-        print(f"Feature 3 schema upgrade notice: {e}")
+        print(f"Feature 3 schema upgrade notice: {e}", flush=True)
 
     try:
         upgrade_feature_4_schema(verbose=False)
     except Exception as e:
-        print(f"Feature 4 schema upgrade notice: {e}")
-    load_forecast_models()
-    retrain_forecast_models_async()
-    start_background_worker()
+        print(f"Feature 4 schema upgrade notice: {e}", flush=True)
+
+    try:
+        load_forecast_models()
+    except Exception as e:
+        print(f"Forecast models load notice: {e}", flush=True)
+
+    try:
+        retrain_forecast_models_async()
+    except Exception as e:
+        print(f"Forecast retrain notice: {e}", flush=True)
+
+    try:
+        start_background_worker()
+    except Exception as e:
+        print(f"Background worker notice: {e}", flush=True)
+
+
+@app.on_event("startup")
+def startup_event():
+    print("Starting IGRS backend...", flush=True)
+    # Initialize DB migrations and caches in background to bind port immediately (<1s)
+    threading.Thread(target=_init_background_services, daemon=True).start()
 
 
 @app.on_event("shutdown")
 def shutdown_event():
-    print("Shutting down IGRS backend...")
+    print("Shutting down IGRS backend...", flush=True)
     stop_background_worker()
 
 
